@@ -1,0 +1,119 @@
+package com.yd.ydbi.anlys.echarts.service.impl;
+
+import java.util.Date;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+import com.github.abel533.echarts.Option;
+import com.github.abel533.echarts.axis.CategoryAxis;
+import com.github.abel533.echarts.axis.ValueAxis;
+import com.github.abel533.echarts.code.Orient;
+import com.github.abel533.echarts.code.Tool;
+import com.github.abel533.echarts.code.X;
+import com.github.abel533.echarts.code.Y;
+import com.github.abel533.echarts.data.Data;
+import com.github.abel533.echarts.json.GsonUtil;
+import com.github.abel533.echarts.series.GeoCoord;
+import com.github.abel533.echarts.series.Line;
+import com.github.abel533.echarts.series.MarkLine;
+import com.github.abel533.echarts.series.MarkPoint;
+import com.yd.ydbi.anlys.echarts.dao.ProvLongLatMapper;
+import com.yd.ydbi.anlys.echarts.dao.ShipTotalMapper;
+import com.yd.ydbi.anlys.echarts.model.ProvLongLat;
+import com.yd.ydbi.anlys.echarts.model.ShipTotal;
+import com.yd.ydbi.anlys.echarts.service.Anlys_echarts_mapService;
+import com.yd.ydbi.utils.ListSortUtil;
+
+/**
+ * <p>
+ * Service实现类
+ * </p>
+ * <p>
+ * Class: Bi_echarts_mapService
+ * </p>
+ *
+ * @since 2015-09-07 11:25:57
+ */
+
+@Service
+public class Anlys_echarts_mapServiceImpl implements Anlys_echarts_mapService {
+	
+	@Autowired
+	ShipTotalMapper shipTotalMapper;
+	
+	@Autowired
+	ProvLongLatMapper provLongLatMapper;
+
+	@Override
+	public Object searchData(Map<String, String> paramsMap) {
+		List<ShipTotal> ShipTotalList = shipTotalMapper.selectAll(paramsMap);
+		List<ProvLongLat> provSiteList = provLongLatMapper.selectAll();
+		
+		/**
+		 * 开始构造地图中的数据
+		 */
+		Option option = new Option();
+		if (ShipTotalList.size() > 1) {
+			// 设置小标题为查询日期和查询省份
+			option.title().subtext(paramsMap.get("sel_dt") + "" + ShipTotalList.get(0).getPickProvNm());
+
+			// 票件量倒序排列获取最大值
+			ListSortUtil<ShipTotal> sortList = new ListSortUtil<ShipTotal>();
+			sortList.sort(ShipTotalList, "shipTotQty", "desc");
+			option.dataRange().max(ShipTotalList.get(0).getShipTotQty());
+			// 设置工具框
+			option.toolbox().show(true).orient(Orient.vertical)
+					.feature(Tool.mark, Tool.dataView, Tool.restore, Tool.saveAsImage).x(X.right).y(Y.center);
+			// 设置地图为全国
+			com.github.abel533.echarts.series.Map map = new com.github.abel533.echarts.series.Map("全国");
+
+			// 设置线条点击后显示的信息
+			MarkLine markLine = new MarkLine();
+			for (ShipTotal mapData : ShipTotalList) {
+				markLine.data().add(new Data[] { new Data(mapData.getPickProvNm()), new Data(mapData.getDelvProvNm()) });
+			}
+			map.setMarkLine(markLine);
+
+			// 设置省会城市在地图上的位置
+			GeoCoord geoCoord = new GeoCoord();
+			for (ProvLongLat provLongLat : provSiteList) {
+				geoCoord.put(provLongLat.getProvinceName(), String.valueOf(provLongLat.getLongVal()), String.valueOf(provLongLat.getLatVal()));
+			}
+			map.setGeoCoord(geoCoord);
+			// 设置始发省份信息
+			com.github.abel533.echarts.series.Map map1 = new com.github.abel533.echarts.series.Map(
+					ShipTotalList.get(0).getPickProvNm());
+
+			// markLine.symbol("none", "circle");
+			// 根据获取的数据赋值
+			MarkLine markLine1 = new MarkLine();
+			MarkPoint markPoint1 = new MarkPoint();
+			for (ShipTotal mapData : ShipTotalList) {
+				// 设置始发到目的的线条并赋值
+				markLine1.data().add(new Data[] { new Data(mapData.getPickProvNm()),
+						new Data(mapData.getDelvProvNm(), mapData.getShipTotQty()) });
+				// 设置目的地线条末端位置并复杂
+				markPoint1.data(new Data(mapData.getDelvProvNm(), mapData.getShipTotQty()));
+			}
+			/*for (int i = 0 ;i< 10;i++) {
+				// 设置始发到目的的线条并赋值
+				markLine1.data().add(new Data[] { new Data(listCity.get(i).getPick_prov_nm()),
+						new Data(listCity.get(i).getDelv_prov_nm(), listCity.get(i).getShip_tot_qty()) });
+				// 设置目的地线条末端位置并复杂
+				markPoint1.data(new Data(listCity.get(i).getDelv_prov_nm(), listCity.get(i).getShip_tot_qty()));
+			}*/
+			map1.setMarkLine(markLine1);
+			map1.setMarkPoint(markPoint1);
+
+			// 设置数据
+			option.series(map, map1);
+		} else {
+			
+		}
+		return option;
+	}
+		
+}
